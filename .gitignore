@@ -1,0 +1,38 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.env
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+
+# Node / Next.js
+node_modules/
+frontend/.next/
+frontend/out/
+npm-debug.log*
+yarn-error.log*
+
+# Data artifacts
+data/*.json
+backend/data/sample_logs.json
+sample_logs.json
+
+# OS / IDE
+.DS_Store
+.idea/
+.vscode/
+*.swp
+.agent/
+
+
+# Docker (local overrides only — keep docker/.env.example if added later)
+# docker/.env is committed with non-secret pins for Phase 0
+
+# Markdown files
+*.md
+!/README.md
+!/readme.md
+
