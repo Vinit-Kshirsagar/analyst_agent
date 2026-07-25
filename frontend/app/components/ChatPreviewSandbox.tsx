@@ -29,7 +29,7 @@ export default function ChatPreviewSandbox() {
       id: "welcome-1",
       sender: "ai",
       text: "Security Agent Assistant initialized (Phase 0/1 Bridge). Connected to Elasticsearch (alerts-security), Ollama (gemma4:e4b), and Elastic MCP Server. How can I assist with threat triage today?",
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      timestamp: "12:00 PM",
     },
   ]);
   const [input, setInput] = useState("");
