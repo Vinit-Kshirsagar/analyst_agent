@@ -1,0 +1,149 @@
+# Phase 0 — Foundation stack (healthcheck-gated, pinned images, memory limits)
+# Usage (from repo root):
+#   docker compose -f docker/docker-compose.yml --env-file docker/.env up -d --build
+#
+# Ollama mounts host ${HOME}/.ollama so existing models (e.g. gemma4:e4b) are reused.
+# Stop the host Ollama app first if port 11434 or model files conflict.
+
+networks:
+  agent-network:
+    driver: bridge
+
+volumes:
+  elasticsearch-data:
+  ollama-data:
+
+services:
+
+  # ---------------------------------------------------------------
+  # Elasticsearch — pinned version, healthcheck, bounded memory
+  # ---------------------------------------------------------------
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:${ES_VERSION:-8.11.0}
+    container_name: elasticsearch
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - ES_JAVA_OPTS=-Xms2g -Xmx2g
+    mem_limit: 4g
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:9200/_cluster/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - elasticsearch-data:/usr/share/elasticsearch/data
+    ports:
+      - "9200:9200"
+    networks:
+      - agent-network
+
+  # ---------------------------------------------------------------
+  # Ollama — pinned for gemma4:e4b; healthcheck requires model present
+  # ---------------------------------------------------------------
+  ollama:
+    image: ollama/ollama:${OLLAMA_VERSION:-0.32.1}
+    container_name: ollama
+    mem_limit: 10g
+    # Reuse host Ollama models (e.g. gemma4:e4b already on Mac) so we do NOT
+    # re-download ~9.6GB into a separate Docker volume. Path is macOS/Linux home.
+    # If host Ollama is also running, stop it first to avoid port/file conflicts:
+    #   brew services stop ollama   # or quit the Ollama app
+    volumes:
+      - ${HOME}/.ollama:/root/.ollama
+    ports:
+      - "11434:11434"
+    # Ready = Ollama API is up. Backend /health checks model tag gemma4:e4b.
+    healthcheck:
+      test: ["CMD-SHELL", "ollama list >/dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 12
+      start_period: 15s
+    networks:
+      - agent-network
+
+  # ---------------------------------------------------------------
+  # MCP Server — official Elastic image, HTTP mode
+  # ---------------------------------------------------------------
+  mcp-server:
+    image: ${MCP_IMAGE:-docker.elastic.co/mcp/elasticsearch:0.4.0}
+    container_name: mcp-server
+    command: ["http"]
+    environment:
+      - ES_URL=http://elasticsearch:9200
+      - ES_API_KEY=
+    ports:
+      - "8080:8080"
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    # Official image is Wolfi-based and does NOT include curl/wget.
+    # Server is up when the process is running; host can verify: curl localhost:8080/ping → "Ready"
+    healthcheck:
+      test: ["CMD-SHELL", "pidof elasticsearch-core-mcp-server >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+    networks:
+      - agent-network
+
+  # ---------------------------------------------------------------
+  # Backend — FastAPI skeleton only (/health, /debug). No LangGraph.
+  # ---------------------------------------------------------------
+  backend:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    container_name: backend
+    environment:
+      - ELASTICSEARCH_URL=http://elasticsearch:9200
+      - OLLAMA_URL=http://ollama:11434
+      - MCP_SERVER_URL=http://mcp-server:8080
+      - GEMMA_MODEL_TAG=${GEMMA_MODEL_TAG:-gemma4:e4b}
+      - LOG_LEVEL=INFO
+    ports:
+      - "8000:8000"
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+      ollama:
+        condition: service_healthy
+      mcp-server:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8000/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    volumes:
+      - ../backend:/app
+      - ../data:/app/data
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    networks:
+      - agent-network
+
+  # ---------------------------------------------------------------
+  # Frontend — Next.js skeleton only (status page). Chat UI = Phase 3.
+  # ---------------------------------------------------------------
+  frontend:
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile
+    container_name: frontend
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+      - INTERNAL_API_URL=http://backend:8000
+    ports:
+      - "3000:3000"
+    depends_on:
+      backend:
+        condition: service_healthy
+    volumes:
+      - ../frontend:/app
+      - /app/node_modules
+      - /app/.next
+    networks:
+      - agent-network
