@@ -4,6 +4,12 @@
 #
 # Ollama mounts host ${HOME}/.ollama so existing models (e.g. gemma4:e4b) are reused.
 # Stop the host Ollama app first if port 11434 or model files conflict.
+#
+# Project name is fixed so this stack never collides with a sibling folder's
+# compose project (Compose defaults project name to the parent directory name,
+# which was "docker" and previously attached mounts from Security_Agent).
+
+name: analyst_agent
 
 networks:
   agent-network:
