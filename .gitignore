@@ -3,10 +3,20 @@ __pycache__/
 *.py[cod]
 .venv/
 venv/
-.env
 *.egg-info/
 .pytest_cache/
 .mypy_cache/
+
+# Secrets / local env overrides (keep docker/.env.example committed)
+.env
+.env.local
+.env.*.local
+!.env.example
+!docker/.env.example
+
+# docker/.env may contain local OLLAMA_URL overrides (remote tunnel).
+# Commit pins via docker/.env.example; copy to docker/.env locally.
+docker/.env
 
 # Node / Next.js
 node_modules/
@@ -27,12 +37,6 @@ sample_logs.json
 *.swp
 .agent/
 
-
-# Docker (local overrides only — keep docker/.env.example if added later)
-# docker/.env is committed with non-secret pins for Phase 0
-
-# Markdown files
-*.md
-!/README.md
-!/readme.md
-
+# Local-only notes (project docs under docs/ and root *.md ARE tracked)
+*.local.md
+notes.local.md

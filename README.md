@@ -1,6 +1,6 @@
 # Autonomous Security Agent
 
-Local-first AI assistant for SOC analysts: natural language over security logs via **FastAPI**, **LangGraph** (Phase 1+), **MCP**, **Elasticsearch**, and **Ollama (`gemma4:e4b`)**. UI: **Next.js**.
+Local-first AI assistant for SOC analysts: natural language over security logs via **FastAPI**, **LangGraph** (Phase 1+), **MCP**, **Elasticsearch**, and **host Ollama (`gemma4:e4b`)**. UI: **Next.js**.
 
 > **Current milestone:** Phase 0 (foundation) is implemented and verified. Agent chat is not built yet.
 
@@ -10,26 +10,80 @@ Local-first AI assistant for SOC analysts: natural language over security logs v
 
 - Docker Desktop / Engine + Compose plugin
 - Git, Python 3.11+ (for host-side seed scripts if desired)
-- Optional: host Ollama with `gemma4:e4b` already pulled (recommended)
-- 16GB+ RAM recommended; raise Docker Desktop memory if possible
+- **LLM access** — either:
+  - **Local:** host Ollama + `gemma4:e4b` (machines that can run it), or
+  - **Remote:** teammate-shared Ollama URL (for M1 / low-RAM laptops — see below)
+- 16GB+ RAM recommended if running Ollama locally; raise Docker Desktop memory if possible
 
-### Run the stack
+### 1. Env file (once)
+
+```bash
+cp docker/.env.example docker/.env
+# edit docker/.env if you use a remote OLLAMA_URL
+```
+
+### 2a. Local Ollama (default — machines that can run `gemma4:e4b`)
+
+```bash
+# Install: https://ollama.com/download  (or brew install ollama)
+ollama pull gemma4:e4b
+ollama serve   # or open the Ollama app
+```
+
+### 2b. Start stack (recommended — checks Ollama first)
 
 ```bash
 # from repo root
+./scripts/dev-up.sh
+```
+
+This script:
+
+1. Ensures `docker/.env` exists  
+2. Probes Ollama (`localhost` for host-gateway URL, or your remote `OLLAMA_URL`)  
+3. Confirms model tag `gemma4:e4b`  
+4. Runs Compose: **Elasticsearch**, **MCP**, **backend**, **frontend**
+
+Manual equivalent:
+
+```bash
 docker compose -f docker/docker-compose.yml --env-file docker/.env up -d --build
 ```
 
-If host Ollama is running, quit it first (port `11434` / model dir conflict). Compose mounts `${HOME}/.ollama` into the Ollama container.
+### 2c. Remote shared Ollama (M1 / low-RAM teammate)
+
+If a teammate cannot run `gemma4:e4b` locally (e.g. M1 memory limits), use a stronger machine as the Ollama host:
+
+**On the host machine (has the model):**
+
+```bash
+ollama serve
+./scripts/share-ollama-tunnel.sh   # needs: brew install cloudflared
+# copy the https://….trycloudflare.com URL → share privately (Slack/DM only)
+```
+
+**On the M1 / consumer machine:**
+
+```bash
+cp docker/.env.example docker/.env
+# set in docker/.env:
+#   OLLAMA_URL=https://XXXX.trycloudflare.com
+./scripts/dev-up.sh
+```
+
+They still run **ES + MCP + backend + frontend** locally (needed for LangChain / LangGraph / MCP work). Only the LLM API is remote.
+
+> **Security:** quick tunnels expose Ollama with **no auth**. Use only for short pair sessions, or prefer **Tailscale**. Never commit tunnel URLs. Details: [docs/current/deployment.md](./docs/current/deployment.md).
 
 ### Verify Phase 0
 
 ```bash
-curl -s http://localhost:8000/health | python3 -m json.tool   # expect "healthy"
-curl -s http://localhost:8080/ping                            # expect Ready
-curl -s http://localhost:11434/api/tags                       # expect gemma4:e4b
-open http://localhost:3000                                    # Next.js status page
+curl -s http://localhost:8000/health | python3 -m json.tool      # expect "healthy" (includes ollama)
+curl -s http://localhost:8080/ping                               # expect Ready
+open http://localhost:3000                                       # Next.js status page
 ```
+
+If `/health` shows `ollama` as `error` or `model_missing`, fix local Ollama or the remote `OLLAMA_URL`.
 
 ### Seed sample security data (idempotent)
 
@@ -51,13 +105,13 @@ Index: **`alerts-security`**, IDs: **`seed-alert-0000`…**
 
 ## Ports
 
-| Service | Port |
-| --- | --- |
-| Next.js frontend | 3000 |
-| FastAPI backend | 8000 |
-| MCP server | 8080 |
-| Elasticsearch | 9200 |
-| Ollama | 11434 |
+| Service | Port | Where it runs |
+| --- | --- | --- |
+| Next.js frontend | 3000 | Docker |
+| FastAPI backend | 8000 | Docker |
+| MCP server | 8080 | Docker |
+| Elasticsearch | 9200 | Docker |
+| Ollama | 11434 | **Host** |
 
 ## Folder overview
 
@@ -89,9 +143,10 @@ Docs are grouped: `current/`, `product/`, `architecture/`, `design/`, `engineeri
 
 ## Demo (Phase 0)
 
-1. Stack up and healthy
-2. Open http://localhost:3000 → **Check backend health**
-3. Confirm ES has 200 seeded alerts
+1. Host Ollama up with `gemma4:e4b`
+2. Stack up and healthy
+3. Open http://localhost:3000 → **Check backend health**
+4. Confirm ES has 200 seeded alerts
 
 ## Next
 
