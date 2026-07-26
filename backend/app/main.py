@@ -1,9 +1,10 @@
 """
 Phase 0 skeleton API.
-Purpose: prove Elasticsearch, Ollama, and MCP Server are reachable from the
-backend container over the Docker network. No agent/LangGraph logic here —
-that begins in Phase 1. CORS is enabled so the Next.js frontend (port 3000)
-can call this API from the browser.
+Purpose: prove Elasticsearch, host Ollama, and MCP Server are reachable from
+the backend container. Ollama runs on the host (host.docker.internal);
+ES and MCP are on the Docker network. No agent/LangGraph logic here — that
+begins in Phase 1. CORS is enabled so the Next.js frontend (port 3000) can
+call this API from the browser.
 """
 import os
 
@@ -26,7 +27,7 @@ app.add_middleware(
 )
 
 ES_URL = os.getenv("ELASTICSEARCH_URL", "http://elasticsearch:9200")
-OLLAMA_URL = os.getenv("OLLAMA_URL", "http://ollama:11434")
+OLLAMA_URL = os.getenv("OLLAMA_URL", "http://host.docker.internal:11434")
 MCP_SERVER_URL = os.getenv("MCP_SERVER_URL", "http://mcp-server:8080")
 GEMMA_MODEL_TAG = os.getenv("GEMMA_MODEL_TAG", "gemma4:e4b")
 

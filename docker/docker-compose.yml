@@ -2,8 +2,14 @@
 # Usage (from repo root):
 #   docker compose -f docker/docker-compose.yml --env-file docker/.env up -d --build
 #
-# Ollama mounts host ${HOME}/.ollama so existing models (e.g. gemma4:e4b) are reused.
-# Stop the host Ollama app first if port 11434 or model files conflict.
+# Ollama runs on the HOST (not in Docker). Install Ollama, pull gemma4:e4b,
+# then start it before bring-up. Backend reaches it via host.docker.internal.
+#
+# Team setup:
+#   1. Install Ollama: https://ollama.com/download
+#   2. ollama pull gemma4:e4b
+#   3. ollama serve   # or open the Ollama desktop app
+#   4. docker compose -f docker/docker-compose.yml --env-file docker/.env up -d --build
 #
 # Project name is fixed so this stack never collides with a sibling folder's
 # compose project (Compose defaults project name to the parent directory name,
@@ -17,7 +23,6 @@ networks:
 
 volumes:
   elasticsearch-data:
-  ollama-data:
 
 services:
 
@@ -41,31 +46,6 @@ services:
       - elasticsearch-data:/usr/share/elasticsearch/data
     ports:
       - "9200:9200"
-    networks:
-      - agent-network
-
-  # ---------------------------------------------------------------
-  # Ollama — pinned for gemma4:e4b; healthcheck requires model present
-  # ---------------------------------------------------------------
-  ollama:
-    image: ollama/ollama:${OLLAMA_VERSION:-0.32.1}
-    container_name: ollama
-    mem_limit: 10g
-    # Reuse host Ollama models (e.g. gemma4:e4b already on Mac) so we do NOT
-    # re-download ~9.6GB into a separate Docker volume. Path is macOS/Linux home.
-    # If host Ollama is also running, stop it first to avoid port/file conflicts:
-    #   brew services stop ollama   # or quit the Ollama app
-    volumes:
-      - ${HOME}/.ollama:/root/.ollama
-    ports:
-      - "11434:11434"
-    # Ready = Ollama API is up. Backend /health checks model tag gemma4:e4b.
-    healthcheck:
-      test: ["CMD-SHELL", "ollama list >/dev/null 2>&1 || exit 1"]
-      interval: 10s
-      timeout: 10s
-      retries: 12
-      start_period: 15s
     networks:
       - agent-network
 
@@ -97,6 +77,7 @@ services:
 
   # ---------------------------------------------------------------
   # Backend — FastAPI skeleton only (/health, /debug). No LangGraph.
+  # Ollama is host-side: OLLAMA_URL → host.docker.internal:11434
   # ---------------------------------------------------------------
   backend:
     build:
@@ -105,16 +86,18 @@ services:
     container_name: backend
     environment:
       - ELASTICSEARCH_URL=http://elasticsearch:9200
-      - OLLAMA_URL=http://ollama:11434
+      - OLLAMA_URL=${OLLAMA_URL:-http://host.docker.internal:11434}
       - MCP_SERVER_URL=http://mcp-server:8080
       - GEMMA_MODEL_TAG=${GEMMA_MODEL_TAG:-gemma4:e4b}
       - LOG_LEVEL=INFO
+    # Lets Linux Docker reach the host Ollama process (macOS/Windows Docker Desktop
+    # already provides host.docker.internal; this is a no-op / fix for Linux).
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     ports:
       - "8000:8000"
     depends_on:
       elasticsearch:
-        condition: service_healthy
-      ollama:
         condition: service_healthy
       mcp-server:
         condition: service_healthy
