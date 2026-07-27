@@ -28,6 +28,12 @@ docs/
 | [roadmap.md](./current/roadmap.md) | Phase status (0 complete → 1 next) |
 | [product-copy.md](./current/product-copy.md) | UI / product strings |
 
+## `mcp/`
+
+| File | Contents |
+| --- | --- |
+| [setup_1.md](./mcp/setup_1.md) | Detailed guide on MCP integration, transport, issues faced & fixes |
+
 ## `product/`
 
 | File | Contents |
