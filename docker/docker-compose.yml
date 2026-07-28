@@ -108,8 +108,11 @@ services:
       retries: 10
       start_period: 20s
     volumes:
+      # Live-mount backend source (includes backend/data/*.py for seed scripts).
+      # Do NOT mount repo root data/ over /app/data — that hid backend/data and
+      # broke in-container generate/import. ES seed data lives in the named
+      # volume elasticsearch-data, not in a host JSON file long-term.
       - ../backend:/app
-      - ../data:/app/data
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
     networks:
       - agent-network
