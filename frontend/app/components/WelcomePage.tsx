@@ -26,12 +26,13 @@ import {
 } from "lucide-react";
 
 import { SmoothCursor } from "./ui/smooth-cursor";
-import { TextAnimate } from "./ui/text-animate";
 import { Terminal } from "./ui/terminal";
 import { LightRays } from "./ui/light-rays";
 import { AnimatedThemeToggler, ThemeMode } from "./ui/animated-theme-toggler";
 import { ScrollReveal, ScrollStagger, ScrollItem } from "./ui/scroll-reveal";
 import IntegrationBeamDemo from "./IntegrationBeamDemo";
+import { useLandingGsap } from "@/app/hooks/useLandingGsap";
+
 interface WelcomePageProps {
   onEnterDashboard: () => void;
   theme: ThemeMode;
@@ -84,7 +85,7 @@ function ProductShot({
 }) {
   return (
     <div
-      className={`overflow-hidden rounded-2xl border border-[var(--border-color)] bg-[var(--bg-card)] shadow-[var(--shadow-card)] ${className ?? ""}`}
+      className={`gsap-product-shot overflow-hidden rounded-2xl border border-[var(--border-color)] bg-[var(--bg-card)] shadow-[var(--shadow-card)] ${className ?? ""}`}
     >
       <div className="flex items-center gap-1.5 border-b border-[var(--border-color)] bg-[var(--bg-primary)]/50 px-3 py-2">
         <span className="h-2 w-2 rounded-full bg-red-400/80" />
@@ -260,7 +261,7 @@ function FeatureTabsSection() {
           <p className="mb-3 font-mono text-[10px] font-bold tracking-[0.16em] text-[var(--accent-blue)]">
             FEATURES
           </p>
-          <h2 className="text-3xl font-extrabold tracking-tight text-[var(--text-primary)] sm:text-4xl">
+          <h2 className="gsap-section-heading text-3xl font-extrabold tracking-tight text-[var(--text-primary)] sm:text-4xl">
             Surfaces you will use day to day
           </h2>
           <p className="mt-3 text-base text-[var(--text-secondary)]">
@@ -373,6 +374,7 @@ export default function WelcomePage({
   ] as const;
 
   const [activeNav, setActiveNav] = useState<string>(navItems[0].id);
+  const pageRef = useLandingGsap();
 
   useEffect(() => {
     const sections = navItems
@@ -394,7 +396,10 @@ export default function WelcomePage({
   }, []);
 
   return (
-    <div className="relative min-h-screen w-full overflow-x-hidden bg-[var(--bg-primary)]">
+    <div
+      ref={pageRef}
+      className="relative min-h-screen w-full overflow-x-hidden bg-[var(--bg-primary)]"
+    >
       <SmoothCursor />
 
       {/* Brand — left edge of landing (outside nav) */}
@@ -456,34 +461,23 @@ export default function WelcomePage({
       </header>
 
       {/* ─── HERO ─── */}
-      <section className="dot-grid-bg relative min-h-screen overflow-hidden">
+      <section className="gsap-hero-section dot-grid-bg relative min-h-screen overflow-hidden">
         <LightRays className="z-0" count={11} intensity={1} />
 
         <div className="relative z-10 mx-auto flex min-h-screen max-w-6xl flex-col justify-center px-4 pb-16 pt-28 sm:px-6 sm:pb-20 sm:pt-32 lg:px-8 lg:pt-36">
           <div className="mx-auto max-w-4xl text-center">
-            <div className="mb-7 inline-flex items-center gap-2 rounded-full border border-[var(--border-color)] bg-[var(--bg-card)]/90 px-4 py-2 text-xs font-medium text-[var(--text-secondary)] shadow-sm backdrop-blur-sm">
+            <div className="hero-anim mb-7 inline-flex items-center gap-2 rounded-full border border-[var(--border-color)] bg-[var(--bg-card)]/90 px-4 py-2 text-xs font-medium text-[var(--text-secondary)] shadow-sm backdrop-blur-sm">
               <span className="status-pulse h-2 w-2 rounded-full bg-[var(--accent-green)]" />
               Phase 0 · local stack healthy
             </div>
-            <TextAnimate
-              as="h1"
-              by="word"
-              animation="blurInUp"
-              className="text-4xl font-extrabold tracking-tight text-[var(--text-primary)] sm:text-5xl md:text-6xl md:leading-[1.08] lg:text-[3.75rem]"
-            >
+            <h1 className="hero-anim text-4xl font-extrabold tracking-tight text-[var(--text-primary)] sm:text-5xl md:text-6xl md:leading-[1.08] lg:text-[3.75rem]">
               Automate security investigations with a local AI workflow
-            </TextAnimate>
-            <TextAnimate
-              as="p"
-              by="word"
-              animation="fadeIn"
-              delay={0.15}
-              className="mx-auto mt-7 max-w-2xl text-base leading-relaxed text-[var(--text-secondary)] sm:text-lg md:text-xl"
-            >
+            </h1>
+            <p className="hero-anim mx-auto mt-7 max-w-2xl text-base leading-relaxed text-[var(--text-secondary)] sm:text-lg md:text-xl">
               Natural-language SOC assistance on your stack — Elasticsearch,
               Ollama, and Elastic MCP — without shipping logs to the cloud.
-            </TextAnimate>
-            <div className="mt-10 flex flex-wrap items-center justify-center gap-3.5">
+            </p>
+            <div className="hero-anim mt-10 flex flex-wrap items-center justify-center gap-3.5">
               <button
                 type="button"
                 onClick={onEnterDashboard}
@@ -500,7 +494,7 @@ export default function WelcomePage({
                 <ArrowDown className="h-5 w-5" />
               </a>
             </div>
-            <div className="mt-10 flex flex-wrap justify-center gap-2.5">
+            <div className="hero-anim mt-10 flex flex-wrap justify-center gap-2.5">
               {stackPills.map(({ label, icon: Icon }) => (
                 <span
                   key={label}
@@ -513,7 +507,7 @@ export default function WelcomePage({
             </div>
           </div>
 
-          <ScrollReveal className="mx-auto mt-14 w-full max-w-2xl sm:mt-16">
+          <div className="gsap-hero-terminal mx-auto mt-14 w-full max-w-2xl sm:mt-16">
             <Terminal
               className="max-w-none px-0"
               username="analyst@local"
@@ -554,7 +548,7 @@ export default function WelcomePage({
                 </div>
               ))}
             </div>
-          </ScrollReveal>
+          </div>
         </div>
       </section>
 
@@ -598,7 +592,7 @@ export default function WelcomePage({
             <p className="mb-3 font-mono text-[10px] font-bold tracking-[0.16em] text-[var(--accent-blue)]">
               PROBLEM
             </p>
-            <h2 className="text-3xl font-extrabold tracking-tight text-[var(--text-primary)] sm:text-4xl">
+            <h2 className="gsap-section-heading text-3xl font-extrabold tracking-tight text-[var(--text-primary)] sm:text-4xl">
               Manual log hunting is a hassle.
             </h2>
           </ScrollReveal>
@@ -632,7 +626,7 @@ export default function WelcomePage({
             <p className="mb-3 font-mono text-[10px] font-bold tracking-[0.16em] text-[var(--accent-blue)]">
               SOLUTION
             </p>
-            <h2 className="text-3xl font-extrabold tracking-tight text-[var(--text-primary)] sm:text-4xl">
+            <h2 className="gsap-section-heading text-3xl font-extrabold tracking-tight text-[var(--text-primary)] sm:text-4xl">
               Evidence first. Language second.
             </h2>
             <p className="mt-3 text-base text-[var(--text-secondary)]">
@@ -670,7 +664,7 @@ export default function WelcomePage({
             <p className="mb-3 font-mono text-[10px] font-bold tracking-[0.16em] text-[var(--accent-blue)]">
               HOW IT WORKS
             </p>
-            <h2 className="text-3xl font-extrabold tracking-tight text-[var(--text-primary)] sm:text-4xl">
+            <h2 className="gsap-section-heading text-3xl font-extrabold tracking-tight text-[var(--text-primary)] sm:text-4xl">
               Just 3 steps to get started
             </h2>
           </ScrollReveal>
@@ -735,7 +729,7 @@ export default function WelcomePage({
             <p className="mb-3 font-mono text-[10px] font-bold tracking-[0.16em] text-[var(--accent-blue)]">
               ARCHITECTURE
             </p>
-            <h2 className="text-3xl font-extrabold tracking-tight text-[var(--text-primary)] sm:text-4xl">
+            <h2 className="gsap-section-heading text-3xl font-extrabold tracking-tight text-[var(--text-primary)] sm:text-4xl">
               Foundation in three layers
             </h2>
             <p className="mt-3 text-base text-[var(--text-secondary)]">
