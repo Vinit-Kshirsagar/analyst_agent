@@ -260,3 +260,25 @@ One teammate owns LangChain / LangGraph / MCP integration on hardware that canno
 
 - `scripts/dev-up.sh`, `scripts/share-ollama-tunnel.sh`
 - `OLLAMA_URL` documented for local vs remote
+
+---
+
+## 2026-07-27
+
+### Decision
+
+Treat **shared remote Gemma via Cloudflare Tunnel** as a completed Phase 1A operational pattern: host runs Ollama + `cloudflared` with `--http-host-header localhost`; teammate sets `OLLAMA_URL` to the tunnel and **recreates** the backend container after env changes. Documented in `docs/mcp/shared-gemma-tunnel.md`.
+
+### Reason
+
+M1 teammate cannot host `gemma4:e4b`. Tunnel works end-to-end; the main failure mode was stale container env after editing `docker/.env`, not the tunnel itself.
+
+### Alternatives Considered
+
+- Tailscale (preferred long-term private mesh; not required for Phase 1A demo)
+- Smaller local model on M1 (offline, diverges from demo model)
+
+### Impact
+
+- Phase 1B can assume remote `OLLAMA_URL` works for ChatOllama
+- Quick-tunnel URLs rotate; recreate backend when URL changes

@@ -33,6 +33,7 @@ docs/
 | File | Contents |
 | --- | --- |
 | [setup_1.md](./mcp/setup_1.md) | Detailed guide on MCP integration, transport, issues faced & fixes |
+| [shared-gemma-tunnel.md](./mcp/shared-gemma-tunnel.md) | Phase 1A addendum: shared host Gemma via Cloudflare, env recreate lesson |
 
 ## `product/`
 
@@ -59,6 +60,7 @@ docs/
 | [technical-specification.md](./engineering/technical-specification.md) | Detailed tech stack, folder tree, coding standards, schema |
 | [implementation-roadmap.md](./engineering/implementation-roadmap.md) | Phased implementation plan (0–4) |
 | [phase-0-setup-script.md](./engineering/phase-0-setup-script.md) | Hardened Phase 0 setup script (bash source) |
+| [phase-1b-plan.md](./engineering/phase-1b-plan.md) | Phase 1B LangGraph agent plan (checklist, API, ownership) |
 
 ## `planning/`
 

@@ -4,11 +4,12 @@ Engineering backlog. Completed work is moved, never deleted.
 
 ## Backlog
 
-- [ ] Phase 1: MCP client connection to `mcp-server:8080`
-- [ ] Phase 1: Tool Registry over MCP-discovered tools
-- [ ] Phase 1: Context Builder + Session Manager
-- [ ] Phase 1: LangGraph graph (Planner → Router → Executor → Observer → Finalizer)
-- [ ] Phase 1: Integrate `gemma4:e4b` via host Ollama for plan/observe
+- [x] Phase 1a: MCP client connection to `mcp-server:8080`
+- [x] Phase 1a: Tool Registry over MCP-discovered tools
+- [x] Phase 1a: Shared remote gemma4:e4b via Cloudflare tunnel (host → teammate)
+- [ ] Phase 1b: Context Builder + Session Manager
+- [ ] Phase 1b: LangGraph graph (Planner → Router → Executor → Observer → Finalizer)
+- [ ] Phase 1b: Integrate `gemma4:e4b` via ChatOllama for plan/observe
 - [ ] Phase 2: `/api/chat` and `/api/chat/stream` (SSE)
 - [ ] Phase 2: Enrich `/health` and `/debug` with metrics
 - [ ] Phase 3: Full Next.js chat UI (messages, SSE client, design system)
@@ -25,7 +26,8 @@ Engineering backlog. Completed work is moved, never deleted.
 - [x] `scripts/dev-up.sh` Ollama preflight + compose
 - [x] Un-ignore project markdown / docs for private team git
 - [x] Remote Ollama path for M1 teammate (tunnel script + docs)
-- [ ] Start Phase 1 agent core
+- [x] Phase 1a verified: MCP smoke + remote Gemma health/generate
+- [ ] Start Phase 1b agent core (LangGraph) — plan: docs/engineering/phase-1b-plan.md
 
 ## In Progress
 

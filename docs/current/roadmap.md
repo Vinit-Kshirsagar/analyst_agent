@@ -12,13 +12,22 @@
 - MCP server HTTP
 - Idempotent seed → `alerts-security` (200 docs)
 
-## Phase 1 — Core agent workflow 🔜 NEXT
+## Phase 1 — Core agent workflow
 
-- MCP client
-- Tool Registry
+### Phase 1A ✅ COMPLETE
+
+- MCP client + Tool Registry
+- Debug MCP endpoints + smoke test
+- Shared remote `gemma4:e4b` via host Ollama / Cloudflare tunnel
+
+### Phase 1B 🔜 NEXT
+
+Plan: [docs/engineering/phase-1b-plan.md](../engineering/phase-1b-plan.md)
+
 - Context Builder + Session Manager
 - LangGraph: Planner → Router → Executor → Observer → Finalizer
-- Gemma via Ollama for reasoning
+- Gemma via Ollama (`ChatOllama`) for plan/observe
+- `POST /debug/agent-run` end-to-end proof
 
 ## Phase 2 — API & integration
 
