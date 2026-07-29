@@ -15,9 +15,9 @@ This document logs the step-by-step progress, technical decisions, implementatio
 | **B0** | Shared baseline check (ES, MCP, Gemma health) | ✅ Verified | — |
 | **B1** | Branch setup & package skeleton | ✅ Completed | `a9f616e` |
 | **B2** | LLM Client (`ChatOllama` factory) | ✅ Completed | `29d8079` |
-| **B3** | Session Manager (In-memory history) | ✅ Completed | Uncommitted |
-| **B4** | Context Builder (Prompt assembly) | ⏳ Next | — |
-| **B5** | AgentState + LangGraph skeleton | ⬜ Pending | — |
+| **B3** | Session Manager (In-memory history) | ✅ Completed | `0bc92ce` |
+| **B4** | Context Builder (Prompt assembly) | ✅ Completed | — |
+| **B5** | AgentState + LangGraph skeleton | ⏳ Next | — |
 | **B6** | Live ToolRegistry Executor | ⬜ Pending | — |
 | **B7** | Endpoint `POST /debug/agent-run` | ⬜ Pending | — |
 | **B8** | Hardening & Gate 3 verification | ⬜ Pending | — |
@@ -59,6 +59,7 @@ This document logs the step-by-step progress, technical decisions, implementatio
   - Ran inside Docker container — confirmed `ChatOllama` object creation with correct `base_url`, `model`, `temperature`.
   - Ran live `ainvoke("Say hi in exactly 5 words")` via Cloudflare tunnel — received `AIMessage` with content `"Hello there, how are you doing?"`.
   - Smoke test **PASSED** on tunnel URL.
+
 ### Task B3 — Session Manager (In-Memory History)
 - **What:** Implemented `SessionManager` in `backend/app/session/manager.py` — an in-memory session store for multi-turn conversation tracking.
 - **How:**
@@ -78,5 +79,21 @@ This document logs the step-by-step progress, technical decisions, implementatio
     - Unknown `session_id` query verified to return `[]` without raising errors.
   - Smoke test **PASSED**.
 
----
+### Task B4 — Context Builder (Prompt Assembly)
+- **What:** Implemented `ContextBuilder` in `backend/app/agent/context.py` — assembles the full prompt message list for the Planner node from system prompt, tool schemas, conversation history, and current question.
+- **How:**
+  1. **System prompt template**: Defines the SOC analyst assistant role, specifies primary index `alerts-security`, lists expected document fields, and includes strict `TOOL_CALL` JSON format rules.
+  2. **`_format_tool_descriptions()`**: Iterates `registry.tool_schemas()` and renders each tool with name, description, required arguments (with types and descriptions), and optional arguments.
+  3. **`build(question, history)`**: Constructs a message list `[system, ...history_messages, user_question]` ready for `ChatOllama.ainvoke()`.
+  4. **`_trim_history()`**: Keeps only the last 10 messages to avoid exceeding the model's context window.
+- **Design decisions:**
+  - Used a `TOOL_CALL: {"tool": ..., "arguments": ...}` text format instead of LangChain's native tool binding — Gemma via Ollama doesn't reliably support structured tool-calling, so explicit text parsing in the Router node (B5) will be more robust.
+  - History trimming set to 10 messages (5 exchanges) — sufficient for multi-turn follow-ups without bloating the prompt.
+  - System prompt explicitly instructs the model to use exact argument names (`index`, `query_body`, `index_pattern`) to reduce parsing failures.
+- **Verification:**
+  - Ran inside Docker container with live MCP tool schemas (5 tools: `list_indices`, `get_mappings`, `esql`, `get_shards`, `search`).
+  - Verified message list structure: `['system', 'user', 'assistant', 'user']` (4 messages with 2-message history).
+  - Verified full system prompt renders all tool names, descriptions, required/optional arguments correctly.
+  - Smoke test **PASSED**.
 
+---
