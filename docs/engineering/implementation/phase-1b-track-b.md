@@ -18,8 +18,8 @@ This document logs the step-by-step progress, technical decisions, implementatio
 | **B3** | Session Manager (In-memory history) | ✅ Completed | `0bc92ce` |
 | **B4** | Context Builder (Prompt assembly) | ✅ Completed | — |
 | **B5** | AgentState + LangGraph skeleton | ✅ Completed | — |
-| **B6** | Live ToolRegistry Executor | ⏳ Next | — |
-| **B7** | Endpoint `POST /debug/agent-run` | ⬜ Pending | — |
+| **B6** | Live ToolRegistry Executor | ✅ Completed | — |
+| **B7** | Endpoint `POST /debug/agent-run` | ⏳ Next | — |
 | **B8** | Hardening & Gate 3 verification | ⬜ Pending | — |
 
 ---
@@ -122,5 +122,22 @@ This document logs the step-by-step progress, technical decisions, implementatio
   - End-to-end `run_agent()` executed with tunnel offline — error handling caught LLM failure cleanly, returned structured JSON with error field populated (no crash).
   - Smoke test **PASSED** (graph compilation + graceful error handling).
   - Full live LLM test deferred until tunnel is back online.
+
+### Task B6 — Live ToolRegistry Executor
+- **What:** Verified the Executor node (already implemented in B5's `make_executor()`) works end-to-end with real MCP tools against live Elasticsearch data.
+- **How:** Ran direct executor node tests inside the Docker backend container (no LLM/Ollama needed):
+  1. **`search` tool**: Queried `alerts-security` with `match_all` + `size: 2`. Returned 200 total hits, 2 docs with full fields (`@timestamp`, `destination.ip`, `event.severity`, `event.type`, `rule.name`, etc.).
+  2. **`list_indices` tool**: Called with `index_pattern: *`. Returned `alerts-security` index with `docs.count: 200`.
+  3. **No tool_name**: Executor correctly skipped execution and returned `tool_result: None`.
+  4. **Truncation**: Fetched 50 docs (large result). Output was 6016 chars ending in `... [truncated]` — confirms the 6000 char cap works.
+  5. **Error handling**: Searched a nonexistent index (`nonexistent-index`). Executor caught the 404 error and returned `"Tool execution error: HTTP status client error (404 Not Found)"` without crashing.
+- **Design decisions:**
+  - No new code was written — B6 is a **verification-only** task confirming B5’s executor implementation works with real MCP/ES infrastructure.
+  - `tools_used` accumulates correctly across multiple executor calls within the same state (e.g. `['search', 'list_indices']`).
+  - `iteration` counter increments correctly (0 → 1 → 2).
+- **Verification:**
+  - All 5 test scenarios **PASSED** inside Docker backend container.
+  - Live ES data (200 seed alerts) queried successfully via MCP.
+  - No Ollama tunnel required.
 
 ---
