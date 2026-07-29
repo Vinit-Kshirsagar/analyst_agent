@@ -17,8 +17,8 @@ This document logs the step-by-step progress, technical decisions, implementatio
 | **B2** | LLM Client (`ChatOllama` factory) | ✅ Completed | `29d8079` |
 | **B3** | Session Manager (In-memory history) | ✅ Completed | `0bc92ce` |
 | **B4** | Context Builder (Prompt assembly) | ✅ Completed | — |
-| **B5** | AgentState + LangGraph skeleton | ⏳ Next | — |
-| **B6** | Live ToolRegistry Executor | ⬜ Pending | — |
+| **B5** | AgentState + LangGraph skeleton | ✅ Completed | — |
+| **B6** | Live ToolRegistry Executor | ⏳ Next | — |
 | **B7** | Endpoint `POST /debug/agent-run` | ⬜ Pending | — |
 | **B8** | Hardening & Gate 3 verification | ⬜ Pending | — |
 
@@ -95,5 +95,32 @@ This document logs the step-by-step progress, technical decisions, implementatio
   - Verified message list structure: `['system', 'user', 'assistant', 'user']` (4 messages with 2-message history).
   - Verified full system prompt renders all tool names, descriptions, required/optional arguments correctly.
   - Smoke test **PASSED**.
+
+### Task B5 — AgentState + LangGraph Graph Skeleton
+- **What:** Implemented all 5 graph node factories in `nodes.py`, wired the full LangGraph `StateGraph` in `graph.py`, and cleaned up `state.py` field groupings.
+- **How:**
+  1. **`state.py`**: Grouped `AgentState` fields by owning node (Input, Planner, Router, Executor, Observer, Finalizer, Control). Removed "stub" note.
+  2. **`nodes.py`** — 5 node factory functions using dependency injection:
+     - `make_planner(llm, context_builder)`: Calls `ContextBuilder.build()` then `llm.ainvoke()`. Returns `plan` text.
+     - `make_router(registry)`: Regex-parses `TOOL_CALL: {"tool": ..., "arguments": ...}` from plan. Validates tool name against `registry.list_names()`. Returns `tool_name`/`tool_args` or `None`.
+     - `make_executor(registry)`: Calls `registry.execute(tool_name, tool_args)`. Stringifies and truncates results (6000 char cap). Increments `iteration` counter and appends to `tools_used`.
+     - `make_observer(llm)`: Sends tool results + question to Gemma with a focused summarization prompt. Returns `observations`.
+     - `make_finalizer()`: Assembles final `answer` from observations (tool path) or cleaned plan text (direct path). Handles error fallback.
+  3. **`graph.py`** — `StateGraph` wiring:
+     - Topology: `START → planner → router → [conditional: executor or finalizer] → executor → observer → [conditional: router loop or finalizer] → END`
+     - `_route_after_router()`: Routes to executor if `tool_name` is set, otherwise finalizer.
+     - `_route_after_observer()`: For MVP, goes to finalizer after first tool call. Max iteration guard present.
+     - `run_agent()`: Entry point integrating `SessionManager`, graph compilation, timing, and structured result dict.
+  4. **Module-level `SessionManager`** instance lives for the process lifetime in `graph.py`.
+- **Design decisions:**
+  - Used **factory pattern** for nodes (`make_planner(llm, ctx)` returns async function) — LangGraph nodes only accept `state`, so closures bind dependencies cleanly.
+  - Tool result truncation at 6000 chars protects Observer's context window from large ES responses.
+  - For MVP, Observer routes directly to Finalizer (single tool call per question). Multi-step chaining is a one-line change in `_route_after_observer()`.
+  - Graph is recompiled per `run_agent()` call — acceptable for debug endpoint; can cache in Phase 2 if needed.
+- **Verification:**
+  - Graph compiled successfully: `CompiledStateGraph` with nodes `['__start__', 'planner', 'router', 'executor', 'observer', 'finalizer', '__end__']`.
+  - End-to-end `run_agent()` executed with tunnel offline — error handling caught LLM failure cleanly, returned structured JSON with error field populated (no crash).
+  - Smoke test **PASSED** (graph compilation + graceful error handling).
+  - Full live LLM test deferred until tunnel is back online.
 
 ---
