@@ -6,6 +6,7 @@
 
 Related docs:
 
+- **Parallel work split (Mayank + Vinit):** [phase-1b-work-split.md](./phase-1b-work-split.md)
 - Phase 1A MCP: [docs/mcp/setup_1.md](../mcp/setup_1.md)
 - Shared Gemma tunnel: [docs/mcp/shared-gemma-tunnel.md](../mcp/shared-gemma-tunnel.md)
 - Architecture: [docs/architecture/system-architecture.md](../architecture/system-architecture.md)
