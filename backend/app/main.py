@@ -1,12 +1,13 @@
 """
-Phase 1 — Backend API
+Phase 1B — Backend API
 Integrates:
   - App lifespan that starts/stops the global MCPClient session (from app.mcp)
   - ToolRegistry (from app.tools)
-  - GET /health           → real dependency checks (ES, Ollama, MCP ping)
-  - GET /debug            → phase info + tool registry metrics
-  - GET /debug/mcp-tools  → list all MCP-discovered tools + schemas
-  - POST /debug/mcp-call  → test execute an MCP tool
+  - GET /health            → real dependency checks (ES, Ollama, MCP ping)
+  - GET /debug             → phase info + tool registry metrics
+  - GET /debug/mcp-tools   → list all MCP-discovered tools + schemas
+  - POST /debug/mcp-call   → test execute an MCP tool
+  - POST /debug/agent-run  → run full LangGraph agent for a question
 
 Ollama runs on the HOST (host.docker.internal:11434).
 ES and MCP run in Docker on the agent-network.
@@ -17,8 +18,9 @@ from contextlib import asynccontextmanager
 
 import httpx
 from elasticsearch import Elasticsearch
-from fastapi import FastAPI, Depends
+from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 
 from app.mcp import (
     get_mcp_client,
@@ -27,6 +29,7 @@ from app.mcp import (
     MCPClient,
 )
 from app.tools import ToolRegistry
+from app.agent.graph import run_agent
 
 logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"))
 logger = logging.getLogger(__name__)
@@ -95,7 +98,11 @@ app.add_middleware(
 # ---------------------------------------------------------------------------
 async def get_registry() -> ToolRegistry:
     if _tool_registry is None:
-        raise RuntimeError("ToolRegistry not initialised — MCP connection failed at startup.")
+        raise HTTPException(
+            status_code=503,
+            detail="ToolRegistry not available — MCP server connection failed at startup. "
+                   "Check that the MCP server is healthy and restart the backend.",
+        )
     return _tool_registry
 
 
@@ -197,3 +204,52 @@ async def debug_mcp_call(
     except Exception as e:
         logger.exception("Tool execution failed: %s", e)
         return {"error": str(e)}
+
+
+# ---------------------------------------------------------------------------
+# Agent endpoint — Phase 1B
+# ---------------------------------------------------------------------------
+class AgentRunRequest(BaseModel):
+    """Request body for POST /debug/agent-run."""
+    question: str
+    session_id: str | None = None
+
+
+class AgentRunResponse(BaseModel):
+    """Response body for POST /debug/agent-run."""
+    session_id: str
+    answer: str
+    plan: str
+    tools_used: list[str]
+    iterations: int
+    error: str | None = None
+
+
+@app.post("/debug/agent-run", response_model=AgentRunResponse)
+async def debug_agent_run(
+    body: AgentRunRequest,
+    registry: ToolRegistry = Depends(get_registry),
+):
+    """
+    Run the full LangGraph agent for a natural-language SOC question.
+
+    Returns the agent's answer, execution plan, tools used, and any errors.
+    Supports multi-turn via optional session_id.
+    """
+    # Validate question
+    if not body.question or not body.question.strip():
+        raise HTTPException(status_code=400, detail="question must not be empty")
+
+    try:
+        result = await run_agent(
+            question=body.question.strip(),
+            registry=registry,
+            session_id=body.session_id,
+        )
+        return AgentRunResponse(**result)
+    except Exception as exc:
+        logger.exception("agent-run failed: %s", exc)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Agent execution error: {exc}",
+        )

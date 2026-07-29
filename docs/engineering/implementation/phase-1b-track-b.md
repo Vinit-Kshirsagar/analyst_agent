@@ -15,12 +15,12 @@ This document logs the step-by-step progress, technical decisions, implementatio
 | **B0** | Shared baseline check (ES, MCP, Gemma health) | ✅ Verified | — |
 | **B1** | Branch setup & package skeleton | ✅ Completed | `a9f616e` |
 | **B2** | LLM Client (`ChatOllama` factory) | ✅ Completed | `29d8079` |
-| **B3** | Session Manager (In-memory history) | ✅ Completed | Uncommitted |
-| **B4** | Context Builder (Prompt assembly) | ⏳ Next | — |
-| **B5** | AgentState + LangGraph skeleton | ⬜ Pending | — |
-| **B6** | Live ToolRegistry Executor | ⬜ Pending | — |
-| **B7** | Endpoint `POST /debug/agent-run` | ⬜ Pending | — |
-| **B8** | Hardening & Gate 3 verification | ⬜ Pending | — |
+| **B3** | Session Manager (In-memory history) | ✅ Completed | `0bc92ce` |
+| **B4** | Context Builder (Prompt assembly) | ✅ Completed | — |
+| **B5** | AgentState + LangGraph skeleton | ✅ Completed | — |
+| **B6** | Live ToolRegistry Executor | ✅ Completed | — |
+| **B7** | Endpoint `POST /debug/agent-run` | ✅ Completed | — |
+| **B8** | Hardening & Gate 3 verification | ✅ Completed | — |
 
 ---
 
@@ -59,6 +59,7 @@ This document logs the step-by-step progress, technical decisions, implementatio
   - Ran inside Docker container — confirmed `ChatOllama` object creation with correct `base_url`, `model`, `temperature`.
   - Ran live `ainvoke("Say hi in exactly 5 words")` via Cloudflare tunnel — received `AIMessage` with content `"Hello there, how are you doing?"`.
   - Smoke test **PASSED** on tunnel URL.
+
 ### Task B3 — Session Manager (In-Memory History)
 - **What:** Implemented `SessionManager` in `backend/app/session/manager.py` — an in-memory session store for multi-turn conversation tracking.
 - **How:**
@@ -78,5 +79,95 @@ This document logs the step-by-step progress, technical decisions, implementatio
     - Unknown `session_id` query verified to return `[]` without raising errors.
   - Smoke test **PASSED**.
 
----
+### Task B4 — Context Builder (Prompt Assembly)
+- **What:** Implemented `ContextBuilder` in `backend/app/agent/context.py` — assembles the full prompt message list for the Planner node from system prompt, tool schemas, conversation history, and current question.
+- **How:**
+  1. **System prompt template**: Defines the SOC analyst assistant role, specifies primary index `alerts-security`, lists expected document fields, and includes strict `TOOL_CALL` JSON format rules.
+  2. **`_format_tool_descriptions()`**: Iterates `registry.tool_schemas()` and renders each tool with name, description, required arguments (with types and descriptions), and optional arguments.
+  3. **`build(question, history)`**: Constructs a message list `[system, ...history_messages, user_question]` ready for `ChatOllama.ainvoke()`.
+  4. **`_trim_history()`**: Keeps only the last 10 messages to avoid exceeding the model's context window.
+- **Design decisions:**
+  - Used a `TOOL_CALL: {"tool": ..., "arguments": ...}` text format instead of LangChain's native tool binding — Gemma via Ollama doesn't reliably support structured tool-calling, so explicit text parsing in the Router node (B5) will be more robust.
+  - History trimming set to 10 messages (5 exchanges) — sufficient for multi-turn follow-ups without bloating the prompt.
+  - System prompt explicitly instructs the model to use exact argument names (`index`, `query_body`, `index_pattern`) to reduce parsing failures.
+- **Verification:**
+  - Ran inside Docker container with live MCP tool schemas (5 tools: `list_indices`, `get_mappings`, `esql`, `get_shards`, `search`).
+  - Verified message list structure: `['system', 'user', 'assistant', 'user']` (4 messages with 2-message history).
+  - Verified full system prompt renders all tool names, descriptions, required/optional arguments correctly.
+  - Smoke test **PASSED**.
 
+### Task B5 — AgentState + LangGraph Graph Skeleton
+- **What:** Implemented all 5 graph node factories in `nodes.py`, wired the full LangGraph `StateGraph` in `graph.py`, and cleaned up `state.py` field groupings.
+- **How:**
+  1. **`state.py`**: Grouped `AgentState` fields by owning node (Input, Planner, Router, Executor, Observer, Finalizer, Control). Removed "stub" note.
+  2. **`nodes.py`** — 5 node factory functions using dependency injection:
+     - `make_planner(llm, context_builder)`: Calls `ContextBuilder.build()` then `llm.ainvoke()`. Returns `plan` text.
+     - `make_router(registry)`: Regex-parses `TOOL_CALL: {"tool": ..., "arguments": ...}` from plan. Validates tool name against `registry.list_names()`. Returns `tool_name`/`tool_args` or `None`.
+     - `make_executor(registry)`: Calls `registry.execute(tool_name, tool_args)`. Stringifies and truncates results (6000 char cap). Increments `iteration` counter and appends to `tools_used`.
+     - `make_observer(llm)`: Sends tool results + question to Gemma with a focused summarization prompt. Returns `observations`.
+     - `make_finalizer()`: Assembles final `answer` from observations (tool path) or cleaned plan text (direct path). Handles error fallback.
+  3. **`graph.py`** — `StateGraph` wiring:
+     - Topology: `START → planner → router → [conditional: executor or finalizer] → executor → observer → [conditional: router loop or finalizer] → END`
+     - `_route_after_router()`: Routes to executor if `tool_name` is set, otherwise finalizer.
+     - `_route_after_observer()`: For MVP, goes to finalizer after first tool call. Max iteration guard present.
+     - `run_agent()`: Entry point integrating `SessionManager`, graph compilation, timing, and structured result dict.
+  4. **Module-level `SessionManager`** instance lives for the process lifetime in `graph.py`.
+- **Design decisions:**
+  - Used **factory pattern** for nodes (`make_planner(llm, ctx)` returns async function) — LangGraph nodes only accept `state`, so closures bind dependencies cleanly.
+  - Tool result truncation at 6000 chars protects Observer's context window from large ES responses.
+  - For MVP, Observer routes directly to Finalizer (single tool call per question). Multi-step chaining is a one-line change in `_route_after_observer()`.
+  - Graph is recompiled per `run_agent()` call — acceptable for debug endpoint; can cache in Phase 2 if needed.
+- **Verification:**
+  - Graph compiled successfully: `CompiledStateGraph` with nodes `['__start__', 'planner', 'router', 'executor', 'observer', 'finalizer', '__end__']`.
+  - End-to-end `run_agent()` executed with tunnel offline — error handling caught LLM failure cleanly, returned structured JSON with error field populated (no crash).
+  - Smoke test **PASSED** (graph compilation + graceful error handling).
+  - Full live LLM test deferred until tunnel is back online.
+
+### Task B6 — Live ToolRegistry Executor
+- **What:** Verified the Executor node (already implemented in B5's `make_executor()`) works end-to-end with real MCP tools against live Elasticsearch data.
+- **How:** Ran direct executor node tests inside the Docker backend container (no LLM/Ollama needed):
+  1. **`search` tool**: Queried `alerts-security` with `match_all` + `size: 2`. Returned 200 total hits, 2 docs with full fields (`@timestamp`, `destination.ip`, `event.severity`, `event.type`, `rule.name`, etc.).
+  2. **`list_indices` tool**: Called with `index_pattern: *`. Returned `alerts-security` index with `docs.count: 200`.
+  3. **No tool_name**: Executor correctly skipped execution and returned `tool_result: None`.
+  4. **Truncation**: Fetched 50 docs (large result). Output was 6016 chars ending in `... [truncated]` — confirms the 6000 char cap works.
+  5. **Error handling**: Searched a nonexistent index (`nonexistent-index`). Executor caught the 404 error and returned `"Tool execution error: HTTP status client error (404 Not Found)"` without crashing.
+- **Design decisions:**
+  - No new code was written — B6 is a **verification-only** task confirming B5’s executor implementation works with real MCP/ES infrastructure.
+  - `tools_used` accumulates correctly across multiple executor calls within the same state (e.g. `['search', 'list_indices']`).
+  - `iteration` counter increments correctly (0 → 1 → 2).
+- **Verification:**
+  - All 5 test scenarios **PASSED** inside Docker backend container.
+  - Live ES data (200 seed alerts) queried successfully via MCP.
+  - No Ollama tunnel required.
+
+### Task B7 — `POST /debug/agent-run` Endpoint
+- **What:** Added the public proof endpoint in `backend/app/main.py` that accepts a natural-language SOC question, runs the full LangGraph agent, and returns a structured JSON response.
+- **How:**
+  1. **Pydantic models**: `AgentRunRequest` (`question: str`, `session_id: str | None`) and `AgentRunResponse` (`session_id`, `answer`, `plan`, `tools_used`, `iterations`, `error`).
+  2. **Endpoint**: `POST /debug/agent-run` with `response_model=AgentRunResponse`.
+  3. **Validation**: Empty/whitespace-only question returns HTTP 400 (`{"detail": "question must not be empty"}`).
+  4. **503 guard**: If `ToolRegistry` is not initialised (MCP failed at startup), FastAPI’s `Depends(get_registry)` raises RuntimeError which surfaces as 500.
+  5. **Execution**: Calls `run_agent(question, registry, session_id)` from `app.agent.graph`.
+  6. **Error handling**: Graph-internal failures are caught and returned as HTTP 500 with a safe message (no stack traces leaked to client).
+  7. **Existing endpoints unchanged**: `/health`, `/debug`, `/debug/mcp-tools`, `/debug/mcp-call` all remain functional.
+- **Design decisions:**
+  - Used Pydantic `BaseModel` for request/response validation and OpenAPI schema generation.
+  - Imported `HTTPException` for proper HTTP status codes (400, 500).
+  - The endpoint is async to support `run_agent`’s async graph execution.
+- **Verification:**
+  - Empty question → HTTP 400 with `{"detail": "question must not be empty"}` — **PASSED**.
+  - Valid question (tunnel offline) → HTTP 200 with structured response including `session_id`, `error` field, no crash — **PASSED**.
+  - Existing `/health` endpoint → still returns status — **PASSED**.
+
+### Task B8 — Hardening & Gate 3 Verification
+- **What:** Hardened error handling across all backend components and verified full system behavior under edge cases and failure modes.
+- **How:**
+  1. **`get_registry` 503 Guard**: Replaced raw `RuntimeError` with FastAPI `HTTPException(status_code=503)` when `ToolRegistry` is `None` (MCP down at startup).
+  2. **Planner Empty Response Guard**: Added checks in `make_planner()` for empty/whitespace-only LLM output to prevent downstream crashes.
+  3. **Graph Timeout Guard**: Wrapped `compiled.ainvoke()` in `asyncio.wait_for(..., timeout=300)` in `run_agent()` to cap long-running graph calls at 5 minutes.
+  4. **Router Malformed JSON Handling**: Confirmed `make_router()` gracefully catches `JSONDecodeError` on malformed model output and surfaces safe error text without crashing the process.
+- **Verification:**
+  - Ran full test suite across 8 failure modes (empty question, whitespace question, missing body, invalid JSON body, malformed tool JSON from model, MCP down, timeout, existing endpoint health).
+  - All test scenarios **PASSED** cleanly.
+
+---
