@@ -12,9 +12,13 @@ Graph topology:
         tool_name is None → finalizer
     finalizer → END
 """
+import asyncio
 import logging
 import time
 from typing import Any
+
+# Agent run timeout in seconds (generous for tunnel latency + LLM inference)
+_AGENT_TIMEOUT_SECONDS = 300
 
 from langgraph.graph import StateGraph, END
 
@@ -166,7 +170,18 @@ async def run_agent(
 
     try:
         compiled = _build_graph(registry)
-        final_state = await compiled.ainvoke(initial_state)
+        final_state = await asyncio.wait_for(
+            compiled.ainvoke(initial_state),
+            timeout=_AGENT_TIMEOUT_SECONDS,
+        )
+    except asyncio.TimeoutError:
+        logger.error("run_agent: timed out after %ds", _AGENT_TIMEOUT_SECONDS)
+        final_state = {
+            **initial_state,
+            "answer": f"Agent timed out after {_AGENT_TIMEOUT_SECONDS}s. "
+                      "The LLM or tool execution took too long — please retry.",
+            "error": f"Timeout after {_AGENT_TIMEOUT_SECONDS}s",
+        }
     except Exception as exc:
         logger.exception("run_agent: graph execution failed: %s", exc)
         final_state = {

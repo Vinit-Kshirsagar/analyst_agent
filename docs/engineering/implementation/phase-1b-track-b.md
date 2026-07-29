@@ -20,7 +20,7 @@ This document logs the step-by-step progress, technical decisions, implementatio
 | **B5** | AgentState + LangGraph skeleton | ✅ Completed | — |
 | **B6** | Live ToolRegistry Executor | ✅ Completed | — |
 | **B7** | Endpoint `POST /debug/agent-run` | ✅ Completed | — |
-| **B8** | Hardening & Gate 3 verification | ⏳ Next | — |
+| **B8** | Hardening & Gate 3 verification | ✅ Completed | — |
 
 ---
 
@@ -158,5 +158,16 @@ This document logs the step-by-step progress, technical decisions, implementatio
   - Empty question → HTTP 400 with `{"detail": "question must not be empty"}` — **PASSED**.
   - Valid question (tunnel offline) → HTTP 200 with structured response including `session_id`, `error` field, no crash — **PASSED**.
   - Existing `/health` endpoint → still returns status — **PASSED**.
+
+### Task B8 — Hardening & Gate 3 Verification
+- **What:** Hardened error handling across all backend components and verified full system behavior under edge cases and failure modes.
+- **How:**
+  1. **`get_registry` 503 Guard**: Replaced raw `RuntimeError` with FastAPI `HTTPException(status_code=503)` when `ToolRegistry` is `None` (MCP down at startup).
+  2. **Planner Empty Response Guard**: Added checks in `make_planner()` for empty/whitespace-only LLM output to prevent downstream crashes.
+  3. **Graph Timeout Guard**: Wrapped `compiled.ainvoke()` in `asyncio.wait_for(..., timeout=300)` in `run_agent()` to cap long-running graph calls at 5 minutes.
+  4. **Router Malformed JSON Handling**: Confirmed `make_router()` gracefully catches `JSONDecodeError` on malformed model output and surfaces safe error text without crashing the process.
+- **Verification:**
+  - Ran full test suite across 8 failure modes (empty question, whitespace question, missing body, invalid JSON body, malformed tool JSON from model, MCP down, timeout, existing endpoint health).
+  - All test scenarios **PASSED** cleanly.
 
 ---

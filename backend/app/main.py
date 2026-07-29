@@ -98,7 +98,11 @@ app.add_middleware(
 # ---------------------------------------------------------------------------
 async def get_registry() -> ToolRegistry:
     if _tool_registry is None:
-        raise RuntimeError("ToolRegistry not initialised — MCP connection failed at startup.")
+        raise HTTPException(
+            status_code=503,
+            detail="ToolRegistry not available — MCP server connection failed at startup. "
+                   "Check that the MCP server is healthy and restart the backend.",
+        )
     return _tool_registry
 
 

@@ -59,6 +59,15 @@ def make_planner(
             logger.error("Planner LLM call failed: %s", exc)
             return {"plan": "", "error": f"Planner LLM error: {exc}"}
 
+        # Guard against empty / None responses
+        if not plan_text or not plan_text.strip():
+            logger.warning("Planner: LLM returned empty response")
+            return {
+                "plan": "",
+                "error": "Planner received empty response from LLM. "
+                         "The model may be overloaded — please retry.",
+            }
+
         logger.info("Planner: output length=%d chars", len(plan_text))
         logger.debug("Planner: raw output:\n%s", plan_text[:500])
 
