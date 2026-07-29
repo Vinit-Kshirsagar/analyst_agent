@@ -19,8 +19,8 @@ This document logs the step-by-step progress, technical decisions, implementatio
 | **B4** | Context Builder (Prompt assembly) | ✅ Completed | — |
 | **B5** | AgentState + LangGraph skeleton | ✅ Completed | — |
 | **B6** | Live ToolRegistry Executor | ✅ Completed | — |
-| **B7** | Endpoint `POST /debug/agent-run` | ⏳ Next | — |
-| **B8** | Hardening & Gate 3 verification | ⬜ Pending | — |
+| **B7** | Endpoint `POST /debug/agent-run` | ✅ Completed | — |
+| **B8** | Hardening & Gate 3 verification | ⏳ Next | — |
 
 ---
 
@@ -139,5 +139,24 @@ This document logs the step-by-step progress, technical decisions, implementatio
   - All 5 test scenarios **PASSED** inside Docker backend container.
   - Live ES data (200 seed alerts) queried successfully via MCP.
   - No Ollama tunnel required.
+
+### Task B7 — `POST /debug/agent-run` Endpoint
+- **What:** Added the public proof endpoint in `backend/app/main.py` that accepts a natural-language SOC question, runs the full LangGraph agent, and returns a structured JSON response.
+- **How:**
+  1. **Pydantic models**: `AgentRunRequest` (`question: str`, `session_id: str | None`) and `AgentRunResponse` (`session_id`, `answer`, `plan`, `tools_used`, `iterations`, `error`).
+  2. **Endpoint**: `POST /debug/agent-run` with `response_model=AgentRunResponse`.
+  3. **Validation**: Empty/whitespace-only question returns HTTP 400 (`{"detail": "question must not be empty"}`).
+  4. **503 guard**: If `ToolRegistry` is not initialised (MCP failed at startup), FastAPI’s `Depends(get_registry)` raises RuntimeError which surfaces as 500.
+  5. **Execution**: Calls `run_agent(question, registry, session_id)` from `app.agent.graph`.
+  6. **Error handling**: Graph-internal failures are caught and returned as HTTP 500 with a safe message (no stack traces leaked to client).
+  7. **Existing endpoints unchanged**: `/health`, `/debug`, `/debug/mcp-tools`, `/debug/mcp-call` all remain functional.
+- **Design decisions:**
+  - Used Pydantic `BaseModel` for request/response validation and OpenAPI schema generation.
+  - Imported `HTTPException` for proper HTTP status codes (400, 500).
+  - The endpoint is async to support `run_agent`’s async graph execution.
+- **Verification:**
+  - Empty question → HTTP 400 with `{"detail": "question must not be empty"}` — **PASSED**.
+  - Valid question (tunnel offline) → HTTP 200 with structured response including `session_id`, `error` field, no crash — **PASSED**.
+  - Existing `/health` endpoint → still returns status — **PASSED**.
 
 ---
