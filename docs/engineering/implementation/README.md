@@ -27,7 +27,7 @@ Short phase list: [docs/current/roadmap.md](../../current/roadmap.md)
 | **1A** | MCP client + Tool Registry + shared Gemma | ✅ COMPLETE | [phase-1a.md](./phase-1a.md) |
 | **1B-A** | Platform seed / verify | ✅ COMPLETE | [phase-1b-a.md](./phase-1b-a.md) |
 | **1B-B** | LangGraph agent + `/debug/agent-run` | ✅ COMPLETE | [phase-1b-track-b.md](./phase-1b-track-b.md) |
-| **1.5** | Agent reliability | ✅ COMPLETE | [CURRENT-STATE-AND-NEXT.md](./CURRENT-STATE-AND-NEXT.md) |
+| **1.5** | Agent reliability | ✅ COMPLETE | [phase-1.5.md](./phase-1.5.md) |
 | **2** | Chat API + SSE | 🔜 NEXT | roadmap |
 | **3** | Full chat UI | ⏸ After 2 | roadmap |
 | **4–5** | Polish / production | ⏸ Later | roadmap |
@@ -82,6 +82,7 @@ Parallel split → [CURRENT-STATE-AND-NEXT.md](./CURRENT-STATE-AND-NEXT.md)
 | [phase-1a.md](./phase-1a.md) | MCP as-built |
 | [phase-1b-a.md](./phase-1b-a.md) | Platform track as-built |
 | [phase-1b-track-b.md](./phase-1b-track-b.md) | Agent B1–B8 log |
+| [phase-1.5.md](./phase-1.5.md) | Reliability: tool-call repair, field normalize, smoke |
 | [../phase-1b-plan.md](../phase-1b-plan.md) | Original 1B plan |
 | [../phase-1b-work-split.md](../phase-1b-work-split.md) | Historical A/B parallel split |
 | [../phase-1b-track-a.md](../phase-1b-track-a.md) | Platform ops runbook |

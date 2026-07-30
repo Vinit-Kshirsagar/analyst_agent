@@ -45,7 +45,9 @@ Docs: [phase-1b-track-b.md](../engineering/implementation/phase-1b-track-b.md), 
 
 ## Phase 1.5 — Agent reliability ✅ COMPLETE
 
-**Status:** 2026-07-30 — `./scripts/smoke-agent-run.sh` green
+**Status:** 2026-07-30 — `./scripts/smoke-agent-run.sh` green  
+
+Full write-up: [implementation/phase-1.5.md](../engineering/implementation/phase-1.5.md)
 
 - Hardened TOOL_CALL JSON extract/repair (`app/agent/tool_call.py`)
 - Search-arg normalize (`severity: "high"` → `event.severity` range; `event.category` → `event.type`)
