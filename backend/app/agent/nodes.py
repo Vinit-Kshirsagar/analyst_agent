@@ -21,6 +21,7 @@ from langchain_ollama import ChatOllama
 
 from app.agent.state import AgentState, MAX_TOOL_ITERATIONS
 from app.agent.context import ContextBuilder
+from app.agent.tool_call import extract_tool_call, normalize_tool_args
 from app.tools import ToolRegistry
 
 logger = logging.getLogger(__name__)
@@ -80,11 +81,8 @@ def make_planner(
 # 2. ROUTER  (Rules — parse TOOL_CALL from planner output)
 # =====================================================================
 
-# Regex to find TOOL_CALL: {"tool": "...", "arguments": {...}}
-_TOOL_CALL_RE = re.compile(
-    r'TOOL_CALL:\s*(\{.*\})',
-    re.DOTALL,
-)
+# Used by Finalizer to strip TOOL_CALL lines from direct answers
+_TOOL_CALL_RE = re.compile(r"TOOL_CALL:\s*\{.*\}", re.DOTALL | re.IGNORECASE)
 
 
 def make_router(
@@ -93,42 +91,38 @@ def make_router(
     """
     Factory: returns a Router node function.
 
-    The Router parses the planner's output for a TOOL_CALL directive.
-    If found, validates the tool name against the registry.
-    If not found, sets tool_name=None so the graph skips to Finalizer.
+    Parses TOOL_CALL via hardened extractor (Phase 1.5), validates tool name,
+    and normalizes search args to the seed ES schema.
     """
 
     async def router(state: AgentState) -> dict:
         plan = state.get("plan", "")
         iteration = state.get("iteration", 0)
 
-        # Check iteration cap
         if iteration >= MAX_TOOL_ITERATIONS:
-            logger.warning("Router: hit MAX_TOOL_ITERATIONS (%d), skipping tools", MAX_TOOL_ITERATIONS)
-            return {"tool_name": None, "tool_args": None}
+            logger.warning(
+                "Router: hit MAX_TOOL_ITERATIONS (%d), skipping tools",
+                MAX_TOOL_ITERATIONS,
+            )
+            return {"tool_name": None, "tool_args": None, "error": None}
 
-        # Try to extract TOOL_CALL
-        match = _TOOL_CALL_RE.search(plan)
-        if not match:
-            logger.info("Router: no TOOL_CALL found — direct answer path")
-            return {"tool_name": None, "tool_args": None}
-
-        # Parse the JSON
-        raw_json = match.group(1)
         try:
-            parsed = json.loads(raw_json)
-        except json.JSONDecodeError as exc:
-            logger.warning("Router: invalid TOOL_CALL JSON: %s", exc)
+            parsed = extract_tool_call(plan)
+        except ValueError as exc:
+            logger.warning("Router: TOOL_CALL parse failed: %s", exc)
             return {
                 "tool_name": None,
                 "tool_args": None,
-                "error": f"Could not parse tool call JSON: {exc}",
+                "error": str(exc),
             }
 
-        tool_name = parsed.get("tool", "")
-        tool_args = parsed.get("arguments", {})
+        if not parsed:
+            logger.info("Router: no TOOL_CALL found — direct answer path")
+            return {"tool_name": None, "tool_args": None, "error": None}
 
-        # Validate tool name
+        tool_name = parsed["tool"]
+        tool_args = parsed.get("arguments") or {}
+
         available = registry.list_names()
         if tool_name not in available:
             logger.warning(
@@ -140,8 +134,9 @@ def make_router(
                 "error": f"Unknown tool '{tool_name}'. Available: {available}",
             }
 
-        logger.info("Router: tool=%s  args=%s", tool_name, str(tool_args)[:200])
-        return {"tool_name": tool_name, "tool_args": tool_args}
+        tool_args = normalize_tool_args(tool_name, tool_args)
+        logger.info("Router: tool=%s  args=%s", tool_name, str(tool_args)[:240])
+        return {"tool_name": tool_name, "tool_args": tool_args, "error": None}
 
     return router
 
