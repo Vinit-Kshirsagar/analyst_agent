@@ -59,7 +59,8 @@ docs/
 | --- | --- |
 | [technical-specification.md](./engineering/technical-specification.md) | Detailed tech stack, folder tree, coding standards, schema |
 | [implementation-roadmap.md](./engineering/implementation-roadmap.md) | Phased implementation plan (0–4) |
-| [implementation/](./engineering/implementation/README.md) | As-built: Phase 0, 1A, 1B-A + status & next steps |
+| [implementation/](./engineering/implementation/README.md) | As-built phase docs |
+| [CURRENT-STATE-AND-NEXT.md](./engineering/implementation/CURRENT-STATE-AND-NEXT.md) | **What we have, limits, next phases, parallel work** |
 | [phase-0-setup-script.md](./engineering/phase-0-setup-script.md) | Hardened Phase 0 setup script (bash source) |
 | [phase-1b-plan.md](./engineering/phase-1b-plan.md) | Phase 1B LangGraph agent plan (checklist, API, ownership) |
 | [phase-1b-work-split.md](./engineering/phase-1b-work-split.md) | Phase 1B parallel tracks: Mayank vs Vinit steps & gates |

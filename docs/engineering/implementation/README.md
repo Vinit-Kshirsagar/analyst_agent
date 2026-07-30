@@ -1,108 +1,75 @@
 # Engineering Implementation Index
 
-Living record of **what we built**, **who owns what**, and **what comes next**.
+**Last updated:** 2026-07-30
 
-**Last updated:** 2026-07-28  
-**Current branch (Mayank Track A):** `phase1b_A`
+## Start here
+
+### [CURRENT-STATE-AND-NEXT.md](./CURRENT-STATE-AND-NEXT.md)
+
+**Single page for the whole team:**
+
+1. What we have now  
+2. Limitations  
+3. What to work on next  
+4. How next phases work and what impact they have  
+5. Parallel tracks  
+6. How to re-verify  
+
+Short phase list: [docs/current/roadmap.md](../../current/roadmap.md)
 
 ---
 
 ## Status at a glance
 
-| Phase | Name | Status | Owner(s) | Doc |
-| --- | --- | --- | --- | --- |
-| **0** | Foundation & environment | ✅ COMPLETE | Team | [phase-0.md](./phase-0.md) |
-| **1A** | MCP client + Tool Registry + shared Gemma | ✅ COMPLETE | Vinit (MCP) + Mayank (host Ollama/tunnel) | [phase-1a.md](./phase-1a.md) |
-| **1B-A** | Platform track (seed, env, verify) | ✅ DONE on branch `phase1b_A` | **Mayank** | [phase-1b-a.md](./phase-1b-a.md) |
-| **1B-B** | Agent track (LangGraph + agent-run) | 🔜 NEXT | **Vinit** (primary) | [../phase-1b-plan.md](../phase-1b-plan.md) · [../phase-1b-work-split.md](../phase-1b-work-split.md) |
-| **2** | Chat API + SSE | ⏸ Later | Team | roadmap |
-| **3** | Full chat UI | ⏸ Later | Team | roadmap |
+| Phase | Name | Status | Doc |
+| --- | --- | --- | --- |
+| **0** | Foundation & environment | ✅ COMPLETE | [phase-0.md](./phase-0.md) |
+| **1A** | MCP client + Tool Registry + shared Gemma | ✅ COMPLETE | [phase-1a.md](./phase-1a.md) |
+| **1B-A** | Platform seed / verify | ✅ COMPLETE | [phase-1b-a.md](./phase-1b-a.md) |
+| **1B-B** | LangGraph agent + `/debug/agent-run` | ✅ COMPLETE | [phase-1b-track-b.md](./phase-1b-track-b.md) |
+| **1.5** | Agent reliability | ✅ COMPLETE | [CURRENT-STATE-AND-NEXT.md](./CURRENT-STATE-AND-NEXT.md) |
+| **2** | Chat API + SSE | 🔜 NEXT | roadmap |
+| **3** | Full chat UI | ⏸ After 2 | roadmap |
+| **4–5** | Polish / production | ⏸ Later | roadmap |
 
 ---
 
-## What we did till now (plain language)
+## What we built (plain language)
 
 ### Phase 0 — “The house”
 
-We can run a local SOC-agent **platform**:
+Docker: Elasticsearch, MCP, FastAPI, Next.js. Host Ollama. Health checks. Seed scripts.
 
-- Elasticsearch, MCP server, FastAPI backend, Next.js frontend in Docker  
-- Ollama + `gemma4:e4b` on the **host** (not in Docker)  
-- Health checks so services start only when ready  
-- Sample security data concept + generators  
+### Phase 1A — “Tools”
 
-You can open the UI, hit `/health`, and know ES / MCP / Ollama are reachable.
+Backend discovers Elastic tools over MCP and can search `alerts-security` via debug APIs. Optional shared Gemma over Cloudflare tunnel.
 
-### Phase 1A — “Tools + shared brain”
+### Phase 1B — “Agent brain”
 
-The backend can **discover and call Elasticsearch tools** via MCP (search, list indices, etc.) without writing raw ES client code for each tool.
-
-We also proved **remote Gemma**: teammate’s backend can use Mayank’s Ollama through Cloudflare Tunnel (`OLLAMA_URL`), so M1 machines need not host the 9.6GB model.
-
-### Phase 1B-A (Mayank, this week) — “Reliable platform for the agent”
-
-Before anyone builds LangGraph, the platform must be boring and reliable:
-
-- One command to **seed 200 alerts** into ES  
-- One command to **verify Gate 0** (ES, seed, MCP, backend, Ollama)  
-- Clear **env rules** (recreate backend after `OLLAMA_URL` change)  
-- Docs for host tunnel + volumes  
-
-**Verified on Mayank’s machine:** `./scripts/verify-phase1b-platform.sh` → all required checks passed; `alerts-security` count = 200; MCP search returns hits; `/health` overall healthy.
+Natural language → LangGraph → Gemma may call MCP search → answer.  
+Entry point: `POST /debug/agent-run`.  
+Platform helpers: `./scripts/seed-alerts.sh`, `./scripts/verify-phase1b-platform.sh`.
 
 ---
 
-## What we need to do next
+## What is still limited
 
-### Immediately (before / while coding agent)
+- Flaky tool JSON / wrong ES field names on free-form questions  
+- No product `/api/chat` or full chat UI  
+- Sessions only in memory  
+- Synthetic seed data only  
 
-| # | Action | Who |
-| --- | --- | --- |
-| 1 | Merge or open PR for `phase1b_A` (scripts + docs) so Vinit has seed/verify | Mayank |
-| 2 | Vinit: branch for agent (`feat/phase-1b-agent`), implement Track B | Vinit |
-| 3 | When Vinit needs GPU: Mayank runs tunnel + shares URL; Vinit force-recreates backend | Both |
-| 4 | Gate 1: ChatOllama works on Vinit with tunnel | Both |
-| 5 | Gate 3: `POST /debug/agent-run` answers a SOC question using MCP + Gemma | Both |
-
-### Do **not** start yet
-
-- Full Next.js chat UI (Phase 3)  
-- Production `/api/chat` + SSE product API (Phase 2) — wait until `/debug/agent-run` works  
-- Rewriting MCP client  
+Full list → [CURRENT-STATE-AND-NEXT.md](./CURRENT-STATE-AND-NEXT.md) §3
 
 ---
 
-## Architecture so far vs next
+## What to do next
 
-```text
-DONE                          NEXT (1B-B)
-────                          ───────────
-Frontend status UI            
-FastAPI /health /debug        
-MCP client + ToolRegistry  →  LangGraph uses registry
-MCP search → ES seed data  →  Planner/Router/Executor/Observer
-Host/remote Gemma (health) →  ChatOllama inside graph
-seed-alerts.sh             →  agent-run demo questions
-verify-phase1b-platform.sh    
+1. **Phase 2** — `/api/chat` (+ SSE stream)  
+2. **Phase 3** — Next.js chat UI  
+3. After Phase 2/3 ship, write a phase plan doc the same way as Phase 1B  
 
-                              POST /debug/agent-run
-                              Session + Context Builder
-```
-
----
-
-## How to re-check “we’re still good”
-
-```bash
-# from repo root, stack + Ollama up
-./scripts/seed-alerts.sh                 # if count not 200
-./scripts/verify-phase1b-platform.sh     # Gate 0
-
-# MCP search (body required)
-curl -s -X POST 'http://localhost:8000/debug/mcp-call?tool_name=search' \
-  -H 'Content-Type: application/json' \
-  -d '{"index":"alerts-security","query_body":{"query":{"match_all":{}},"size":2}}'
-```
+Parallel split → [CURRENT-STATE-AND-NEXT.md](./CURRENT-STATE-AND-NEXT.md)
 
 ---
 
@@ -110,18 +77,21 @@ curl -s -X POST 'http://localhost:8000/debug/mcp-call?tool_name=search' \
 
 | File | Contents |
 | --- | --- |
-| [phase-0.md](./phase-0.md) | Foundation stack, host Ollama, health, seed generators |
-| [phase-1a.md](./phase-1a.md) | MCP client, ToolRegistry, debug endpoints, tunnel ops |
-| [phase-1b-a.md](./phase-1b-a.md) | Mayank Track A deliverables, volumes, seed process, next handoff |
-| [../phase-1b-plan.md](../phase-1b-plan.md) | Full Phase 1B technical plan |
-| [../phase-1b-work-split.md](../phase-1b-work-split.md) | Parallel Mayank / Vinit checklist |
-| [../phase-1b-track-a.md](../phase-1b-track-a.md) | Track A runbook (ops detail) |
+| **[CURRENT-STATE-AND-NEXT.md](./CURRENT-STATE-AND-NEXT.md)** | **Current + limits + next roadmap** |
+| [phase-0.md](./phase-0.md) | Foundation as-built |
+| [phase-1a.md](./phase-1a.md) | MCP as-built |
+| [phase-1b-a.md](./phase-1b-a.md) | Platform track as-built |
+| [phase-1b-track-b.md](./phase-1b-track-b.md) | Agent B1–B8 log |
+| [../phase-1b-plan.md](../phase-1b-plan.md) | Original 1B plan |
+| [../phase-1b-work-split.md](../phase-1b-work-split.md) | Historical A/B parallel split |
+| [../phase-1b-track-a.md](../phase-1b-track-a.md) | Platform ops runbook |
 
 ---
 
-## Team ownership (Phase 1B)
+## Quick verify
 
-| Track | Person | Focus |
-| --- | --- | --- |
-| **A — Platform** | Mayank | Ollama host, tunnel, seed, env, verify scripts, docs |
-| **B — Agent** | Vinit | LLM client, session, context, LangGraph, `/debug/agent-run` |
+```bash
+./scripts/seed-alerts.sh
+./scripts/verify-phase1b-platform.sh
+./scripts/smoke-agent-run.sh
+```
