@@ -1,5 +1,6 @@
 """
-Phase 1B — Backend API
+Backend API — Phase 1B agent + Phase 2 product chat.
+
 Integrates:
   - App lifespan that starts/stops the global MCPClient session (from app.mcp)
   - ToolRegistry (from app.tools)
@@ -8,6 +9,8 @@ Integrates:
   - GET /debug/mcp-tools   → list all MCP-discovered tools + schemas
   - POST /debug/mcp-call   → test execute an MCP tool
   - POST /debug/agent-run  → run full LangGraph agent for a question
+  - POST /api/chat         → product chat JSON (Phase 2)
+  - POST /api/chat/stream  → product chat SSE (Phase 2)
 
 Ollama runs on the HOST (host.docker.internal:11434).
 ES and MCP run in Docker on the agent-network.
@@ -30,6 +33,9 @@ from app.mcp import (
 )
 from app.tools import ToolRegistry
 from app.agent.graph import run_agent
+from app import deps
+from app.deps import get_registry
+from app.api.chat import router as chat_router
 
 logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"))
 logger = logging.getLogger(__name__)
@@ -38,11 +44,6 @@ ES_URL = os.getenv("ELASTICSEARCH_URL", "http://elasticsearch:9200")
 OLLAMA_URL = os.getenv("OLLAMA_URL", "http://host.docker.internal:11434")
 MCP_SERVER_URL = os.getenv("MCP_SERVER_URL", "http://mcp-server:8080")
 GEMMA_MODEL_TAG = os.getenv("GEMMA_MODEL_TAG", "gemma4:e4b")
-
-# ---------------------------------------------------------------------------
-# Tool registry — populated during lifespan startup
-# ---------------------------------------------------------------------------
-_tool_registry: ToolRegistry | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -54,13 +55,13 @@ async def lifespan(app: FastAPI):
     Startup: open the MCP client session + build the tool registry.
     Shutdown: cleanly close the MCP session.
     """
-    global _tool_registry
     try:
         await start_global_client()
         client = await get_mcp_client()
-        _tool_registry = await ToolRegistry.from_mcp_client(client)
-        logger.info("Tool registry ready: %s", _tool_registry.list_names())
+        deps.tool_registry = await ToolRegistry.from_mcp_client(client)
+        logger.info("Tool registry ready: %s", deps.tool_registry.list_names())
     except Exception as exc:
+        deps.tool_registry = None
         logger.warning(
             "Startup: MCP client failed to connect (%s). "
             "Tool endpoints will be unavailable until MCP is healthy.",
@@ -70,6 +71,7 @@ async def lifespan(app: FastAPI):
     yield  # application runs here
 
     await stop_global_client()
+    deps.tool_registry = None
     logger.info("MCP session closed — shutdown complete.")
 
 
@@ -77,7 +79,7 @@ async def lifespan(app: FastAPI):
 # FastAPI app
 # ---------------------------------------------------------------------------
 app = FastAPI(
-    title="Security Agent — Phase 1 (MCP Integration)",
+    title="Security Agent — Phase 2 (Chat API)",
     lifespan=lifespan,
 )
 
@@ -92,18 +94,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-
-# ---------------------------------------------------------------------------
-# Dependency helpers
-# ---------------------------------------------------------------------------
-async def get_registry() -> ToolRegistry:
-    if _tool_registry is None:
-        raise HTTPException(
-            status_code=503,
-            detail="ToolRegistry not available — MCP server connection failed at startup. "
-                   "Check that the MCP server is healthy and restart the backend.",
-        )
-    return _tool_registry
+# Product chat routes (Phase 2)
+app.include_router(chat_router)
 
 
 # ---------------------------------------------------------------------------
@@ -142,7 +134,9 @@ def health():
         components["mcp_server"] = {
             "status": "connected" if r.status_code == 200 else "unreachable",
             "tool_registry": (
-                _tool_registry.list_names() if _tool_registry else "not_initialised"
+                deps.tool_registry.list_names()
+                if deps.tool_registry
+                else "not_initialised"
             ),
         }
     except Exception as e:
@@ -163,14 +157,19 @@ def health():
 async def debug():
     """Phase info and live tool registry metrics."""
     return {
-        "phase": "1",
+        "phase": "2",
         "mcp_server_url": MCP_SERVER_URL,
+        "apis": {
+            "chat": "POST /api/chat",
+            "chat_stream": "POST /api/chat/stream",
+            "agent_run_debug": "POST /debug/agent-run",
+        },
         "tool_registry": (
             {
-                "tools": _tool_registry.list_names(),
-                "call_counts": _tool_registry.call_counts(),
+                "tools": deps.tool_registry.list_names(),
+                "call_counts": deps.tool_registry.call_counts(),
             }
-            if _tool_registry
+            if deps.tool_registry
             else "not_initialised"
         ),
     }

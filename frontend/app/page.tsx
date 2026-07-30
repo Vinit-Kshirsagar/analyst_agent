@@ -15,6 +15,8 @@ import LogsTab from "./components/tabs/LogsTab";
 import SecurityTab from "./components/tabs/SecurityTab";
 import StatusTab from "./components/tabs/StatusTab";
 import SettingsTab from "./components/tabs/SettingsTab";
+import ChatTab from "./components/tabs/ChatTab";
+
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -103,6 +105,8 @@ export default function StatusPage() {
           {activeTab === "dashboard" && (
             <DashboardOverview healthData={healthData} backendError={error} />
           )}
+
+          {activeTab === "chat" && <ChatTab />}
 
           {activeTab === "analytics" && <AnalyticsTab />}
 
