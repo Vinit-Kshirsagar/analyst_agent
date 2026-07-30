@@ -11,11 +11,13 @@ import {
   Settings, 
   ChevronLeft, 
   ChevronRight,
-  Shield
+  Shield,
+  MessageSquare,
 } from "lucide-react";
 
 export type TabType = 
   | "dashboard"
+  | "chat"
   | "analytics"
   | "charts"
   | "pipelines"
@@ -43,6 +45,7 @@ export default function Sidebar({
 }: SidebarProps) {
   const navItems = [
     { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
+    { id: "chat", label: "Agent Chat", icon: MessageSquare },
     { id: "analytics", label: "Analytics", icon: BarChart3 },
     { id: "charts", label: "Charts Showcase", icon: LineChart },
     { id: "pipelines", label: "Pipelines", icon: GitCommit },

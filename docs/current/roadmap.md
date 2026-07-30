@@ -64,29 +64,40 @@ Details: [CURRENT-STATE-AND-NEXT.md](../engineering/implementation/CURRENT-STATE
 
 ---
 
-## Phase 2 — API & integration 🔜 NEXT
+## Phase 2 — API & integration ✅ on branch `feat/phase-2-3-product-chat`
 
-- `POST /api/chat` and `/api/chat/stream` (SSE)
-- Observability metrics (latency, tools_used)
-- Enrich `/health` / `/debug` as needed
+**Branch:** `feat/phase-2-3-product-chat` (Phases 2 + 3 together)  
+**Plan:** [phase-2-plan.md](../engineering/phase-2-plan.md) · as-built [implementation/phase-2.md](../engineering/implementation/phase-2.md)
+
+- `POST /api/chat` — product JSON chat (wraps `run_agent`)
+- `POST /api/chat/stream` — SSE lifecycle events
+- Smoke: `./scripts/smoke-chat-api.sh`
 
 **Impact:** Stable client contract for the UI.
 
 ---
 
-## Phase 3 — UI & UX
+## Phase 3 — UI & UX ✅ on same branch
 
-- Full Next.js chat UI
-- SSE streaming display
-- Design system applied
+**As-built:** [implementation/phase-3.md](../engineering/implementation/phase-3.md)
+
+- Next.js **Agent Chat** tab (`ChatTab.tsx`)
+- Calls `/api/chat` (optional Stream → `/api/chat/stream`)
+- Session id + clear; shows tools_used
 
 **Impact:** Analyst can use the product without curl.
 
+**Verify:** open http://localhost:3000 → Agent Chat → ask a seed-aware question.
+
 ---
 
-## Phase 4 — Optimization & polish
+## Phase 4 — Optimization & polish 🔜 NEXT (after merge)
 
-- Latency, edge cases, docs, demo script
+**Plan:** [NEXT-AFTER-PHASE-2-3.md](../engineering/implementation/NEXT-AFTER-PHASE-2-3.md)
+
+- Latency / timeout UX, better loading via SSE steps
+- Demo question chips, seed fixtures, recorded walkthrough
+- Edge cases (Ollama/MCP down banners in chat)
 
 ---
 
@@ -94,6 +105,7 @@ Details: [CURRENT-STATE-AND-NEXT.md](../engineering/implementation/CURRENT-STATE
 
 - Auth, guardrails, evaluation harness, expanded tools  
   (see [production-hardening-review.md](../planning/production-hardening-review.md))
+- Session persistence, deploy/TLS/secrets
 
 ---
 
@@ -107,7 +119,6 @@ Details: [CURRENT-STATE-AND-NEXT.md](../engineering/implementation/CURRENT-STATE
 
 | Track | Focus |
 | --- | --- |
-| **Platform / host** | Ollama + tunnel, seed, verify, smoke scripts, demo pack |
-| **Agent / product** | Reliability (1.5) → chat API (2) → chat UI (3) |
-
-Do **not** start large UI work until Phase 1.5 demo questions pass reliably.
+| **Ship** | Merge `feat/phase-2-3-product-chat` → `main`, team pull, joint demo |
+| **Platform** | Ollama/tunnel, seed, smokes stay green |
+| **Product polish** | Phase 4 UX/demo (after merge) |
